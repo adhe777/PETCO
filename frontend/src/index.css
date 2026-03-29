@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@layer base {
+    :root {
+        /* --- Midnight Aurora Palette --- */
+        --midnight: #030712;     /* Core BG */
+        --midnight-soft: #0a0f1a; /* Card BG */
+        --aurora-emerald: #10b981;
+        --aurora-cyan: #06b6d4;
+        --aurora-violet: #8b5cf6;
+        --gold-accent: #f59e0b;
+        
+        /* Secondary / UI Tokens */
+        --text-pale: #f9fafb;
+        --text-muted: #9ca3af;
+        --glass-bg: rgba(255, 255, 255, 0.03);
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-glow: rgba(16, 185, 129, 0.1);
+        
+        --primary-gradient: linear-gradient(135deg, var(--aurora-emerald) 0%, var(--aurora-cyan) 100%);
+        --premium-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+    }
+
+    [data-theme='light'] {
+        filter: invert(0.95) hue-rotate(180deg);
+        background-color: var(--midnight); /* Ensure base background is inverted */
+    }
+
+    /* Double invert media and certain decorative elements back to original */
+    [data-theme='light'] img,
+    [data-theme='light'] video,
+    [data-theme='light'] .aurora-blur::before,
+    [data-theme='light'] .no-invert {
+        filter: invert(1.05) hue-rotate(180deg);
+    }
+
+    * {
+        @apply transition-colors duration-300;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        background-color: var(--midnight);
+        color: var(--text-pale);
+        font-family: 'Outfit', 'Inter', sans-serif;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+@layer components {
+    /* --- Premium UI Blocks --- */
+    
+    .aurora-blur {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .aurora-blur::before {
+        content: "";
+        position: absolute;
+        top: -10%;
+        left: -10%;
+        width: 40%;
+        height: 40%;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+        filter: blur(80px);
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    .glass-premium {
+        @apply bg-gray-800/50 backdrop-blur-3xl border border-gray-700/50 transition-all duration-500;
+    }
+
+    .glass-input {
+        @apply w-full bg-gray-800/80 border border-gray-700 rounded-xl px-5 py-3 text-white placeholder:text-gray-500 
+           focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all;
+    }
+
+    .btn-primary {
+        @apply bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl 
+           hover:bg-emerald-600 hover:scale-105 active:scale-95 transition-all duration-300 shadow-lg shadow-emerald-500/20;
+    }
+
+    .btn-secondary {
+        @apply bg-gray-800 text-white font-bold px-6 py-3 rounded-xl 
+           hover:bg-gray-700 hover:scale-105 active:scale-95 transition-all duration-300 border border-gray-700;
+    }
+
+    .card-simple {
+        @apply bg-gray-800/40 border border-gray-700/50 rounded-2xl p-6 transition-all;
+    }
+
+    .text-gradient {
+        @apply bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400;
+    }
+
+    .shimmer {
+        @apply relative overflow-hidden;
+    }
+
+    .shimmer::after {
+        content: "";
+        @apply absolute inset-0 -translate-x-full;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+        animation: shimmer-load 2s infinite;
+    }
+}
+
+/* --- Keyframes & Animation Helpers --- */
+
+@keyframes aurora-float {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(10%, 10%) rotate(5deg); }
+}
+
+@keyframes shimmer-load {
+    100% { transform: translateX(100%); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--midnight);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--aurora-emerald);
+}
+
+/* Simple Animation Classes for Framer Motion Fallbacks */
+.reveal {
+    animation: reveal-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes reveal-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Container Utility */
+.container-premium {
+    @apply max-w-7xl mx-auto px-6 lg:px-12;
+}
