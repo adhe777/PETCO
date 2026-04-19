@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ShoppingBag, Star, Plus, ArrowRight, Filter, Search, ChevronRight, Tag, X, Eye, ShoppingCart, ArrowUpDown, Sparkles, Cpu, Layers, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ShoppingBag, Star, Plus, Minus, ArrowRight, Filter, Search, ChevronRight, Tag, X, Eye, ShoppingCart, ArrowUpDown, Sparkles, Cpu, Layers, Loader2, Bone, Activity, Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
@@ -13,7 +13,14 @@ const Marketplace = () => {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [quantity, setQuantity] = useState(1);
+    const [userRating, setUserRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [showReviews, setShowReviews] = useState(false);
     const { addToCart } = useCart();
+
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+    const isAdmin = user.role === 'admin' || user.role === 'Administrator';
 
     useEffect(() => {
         const fetchProducts = async () => {
@@ -32,10 +39,13 @@ const Marketplace = () => {
 
     const categories = [
         { name: 'All Products', count: products.length, icon: Layers },
-        { name: 'food', count: products.filter(p => (p.category || '').toLowerCase() === 'food').length, icon: ShoppingBag },
+        { name: 'food', count: products.filter(p => (p.category || '').toLowerCase() === 'food').length, icon: Bone },
         { name: 'tech', count: products.filter(p => (p.category || '').toLowerCase() === 'tech').length, icon: Cpu },
         { name: 'apparel', count: products.filter(p => (p.category || '').toLowerCase() === 'apparel').length, icon: Tag },
-        { name: 'wellness', count: products.filter(p => (p.category || '').toLowerCase() === 'wellness').length, icon: Sparkles }
+        { name: 'wellness', count: products.filter(p => (p.category || '').toLowerCase() === 'wellness').length, icon: Sparkles },
+        { name: 'toys', count: products.filter(p => (p.category || '').toLowerCase() === 'toys').length, icon: Gamepad2 },
+        { name: 'health', count: products.filter(p => (p.category || '').toLowerCase() === 'health').length, icon: Activity },
+        { name: 'accessories', count: products.filter(p => (p.category || '').toLowerCase() === 'accessories').length, icon: ShoppingBag }
     ];
 
     const filteredAndSortedProducts = useMemo(() => {
@@ -60,7 +70,7 @@ const Marketplace = () => {
         }
 
         return result;
-    }, [activeCategory, searchQuery, sortOption]);
+    }, [products, activeCategory, searchQuery, sortOption]);
 
     return (
         <div className="pt-32 pb-20 min-h-screen bg-midnight transition-colors duration-300 overflow-hidden">
@@ -206,7 +216,8 @@ const Marketplace = () => {
                                                         <p className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.3em]">{p.category}</p>
                                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
                                                             <Star size={12} className="text-emerald-400 fill-emerald-400" />
-                                                            <span className="text-[10px] font-black text-white">{p.rating || '4.5'}</span>
+                                                            <span className="text-[10px] font-black text-white">{(p.rating || 0).toFixed(1)}</span>
+                                                             <span className="text-[8px] text-muted ml-0.5">({p.numReviews || 0})</span>
                                                         </div>
                                                     </div>
                                                     
@@ -220,12 +231,14 @@ const Marketplace = () => {
                                                             {p.price.toLocaleString()}
                                                         </div>
 
-                                                        <button 
-                                                            onClick={() => addToCart(p)} 
-                                                            className="w-14 h-14 glass-premium flex items-center justify-center rounded-2xl hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all group/add active:scale-95"
-                                                        >
-                                                            <Plus size={24} className="text-white group-hover/add:rotate-90 transition-transform" />
-                                                        </button>
+                                                        {!isAdmin && (
+                                                            <button 
+                                                                onClick={() => addToCart(p)} 
+                                                                className="w-14 h-14 glass-premium flex items-center justify-center rounded-2xl hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all group/add active:scale-95"
+                                                            >
+                                                                <Plus size={24} className="text-white group-hover/add:rotate-90 transition-transform" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -285,24 +298,144 @@ const Marketplace = () => {
                                     </div>
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5 text-emerald-500">
-                                            <Star size={18} className="fill-emerald-500" />
-                                            <span className="text-lg font-black">{selectedProduct.rating}</span>
-                                        </div>
-                                        <span className="text-[10px] font-black text-muted uppercase tracking-widest">Rating</span>
-                                    </div>
-                                </div>
+                                            {[1, 2, 3, 4, 5].map((s) => (
+                                                 <Star 
+                                                     key={s} 
+                                                     size={22} 
+                                                     className={`cursor-pointer transition-all ${userRating >= s ? 'fill-emerald-500' : 'text-emerald-500/30'}`}
+                                                     onClick={() => setUserRating(s)}
+                                                 />
+                                             ))}
+                                             <span className="text-lg font-black ml-3">{(selectedProduct.rating || 0).toFixed(1)}</span>
+                                         </div>
+                                         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Tap to rate</span>
+                                     </div>
+                                 </div>
 
-                                <div className="flex gap-6">
-                                    <button
-                                        onClick={() => {
-                                            addToCart(selectedProduct);
-                                            setSelectedProduct(null);
-                                        }}
-                                        className="btn-primary flex-1 !py-6 !text-xs !font-black flex items-center justify-center gap-4 group shadow-emerald-500/20"
-                                    >
-                                        <ShoppingCart size={20} /> ADD TO CART
-                                    </button>
-                                </div>
+                                 {!isAdmin ? (
+                                     <div className="space-y-8">
+                                         <div className="space-y-3">
+                                             <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-2">Share your experience</label>
+                                             <textarea 
+                                                 placeholder="Write a review..."
+                                                 value={reviewComment}
+                                                 onChange={(e) => setReviewComment(e.target.value)}
+                                                 className="glass-input h-24 py-4 px-6 text-sm resize-none"
+                                             />
+                                             <button 
+                                                 disabled={!userRating}
+                                                 onClick={async (e) => {
+                                                     const btn = e.currentTarget;
+                                                     btn.disabled = true;
+                                                     btn.innerHTML = '<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>';
+                                                     
+                                                     if (!userRating) {
+                                                         btn.disabled = false;
+                                                         btn.innerHTML = 'SUBMIT REVIEW';
+                                                         return toast.error('Please select a rating');
+                                                     }
+                                                     try {
+                                                         const res = await axios.post(`${API_URL}/api/products/${selectedProduct._id}/rate`, { 
+                                                             rating: userRating,
+                                                             comment: reviewComment 
+                                                         }, {
+                                                             headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                                                         });
+                                                         toast.success('Review submitted!');
+                                                         setSelectedProduct({ ...selectedProduct, ...res.data });
+                                                         setReviewComment('');
+                                                         setUserRating(0);
+                                                         const prodRes = await axios.get(`${API_URL}/api/products`);
+                                                         setProducts(prodRes.data);
+                                                     } catch (e) {
+                                                         toast.error('Failed to submit review');
+                                                     } finally {
+                                                         btn.disabled = false;
+                                                         btn.innerHTML = 'SUBMIT REVIEW';
+                                                     }
+                                                 }}
+                                                 className="btn-gradient !py-4 !px-10 !text-[11px] w-fit shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed group"
+                                             >
+                                                 SUBMIT REVIEW
+                                             </button>
+                                         </div>
+
+                                         <div className="flex items-center gap-6">
+                                             <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl p-2">
+                                                 <button 
+                                                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                                     className="w-10 h-10 rounded-xl hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                 >
+                                                     <Minus size={18} />
+                                                 </button>
+                                                 <span className="text-xl font-black min-w-[2rem] text-center">{quantity}</span>
+                                                 <button 
+                                                     onClick={() => setQuantity(quantity + 1)}
+                                                     className="w-10 h-10 rounded-xl hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                 >
+                                                     <Plus size={18} />
+                                                 </button>
+                                             </div>
+                                             <span className="text-[10px] font-black text-muted uppercase tracking-widest">Select Quantity</span>
+                                         </div>
+
+                                         <div className="flex gap-4">
+                                             <button
+                                                 onClick={() => {
+                                                     addToCart(selectedProduct, quantity);
+                                                     setSelectedProduct(null);
+                                                     setQuantity(1);
+                                                     setUserRating(0);
+                                                     setReviewComment('');
+                                                 }}
+                                                 className="btn-primary flex-1 !py-6 !text-[10px] !font-black flex items-center justify-center gap-4 group shadow-emerald-500/20"
+                                             >
+                                                 <ShoppingCart size={18} /> ADD TO CART
+                                             </button>
+                                             <button 
+                                                onClick={() => setShowReviews(!showReviews)}
+                                                className="glass-premium !rounded-2xl !px-6 text-[10px] font-black uppercase tracking-widest text-white border-white/10 flex items-center gap-3 transition-all hover:bg-white/5"
+                                             >
+                                                 {showReviews ? 'HIDE' : 'VIEW REVIEWS'}
+                                             </button>
+                                         </div>
+
+                                         <AnimatePresence>
+                                            {showReviews && (
+                                                <motion.div 
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className="pt-6 space-y-4 overflow-hidden"
+                                                >
+                                                    <div className="border-t border-white/5 pt-6 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                                        {(selectedProduct.reviews || []).length > 0 ? (
+                                                            selectedProduct.reviews.map((rev, idx) => (
+                                                                <div key={idx} className="mb-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">{rev.name || 'Anonymous User'}</p>
+                                                                        <div className="flex gap-0.5">
+                                                                            {[1, 2, 3, 4, 5].map(s => (
+                                                                                <Star key={s} size={8} className={s <= rev.rating ? 'fill-emerald-500 text-emerald-500' : 'text-emerald-500/20'} />
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                    <p className="text-xs text-muted leading-relaxed italic">"{rev.comment || 'No comment provided.'}"</p>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <p className="text-center text-muted text-[10px] font-black uppercase tracking-widest opacity-50 py-4">No reviews yet.</p>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                         </AnimatePresence>
+                                     </div>
+                                ) : (
+                                    <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl text-amber-500 font-bold text-center">
+                                        Administrators cannot place orders. Use the Dashboard to manage inventory.
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </div>

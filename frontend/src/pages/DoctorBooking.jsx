@@ -11,6 +11,7 @@ const DoctorBooking = () => {
     const [activeDoctor, setActiveDoctor] = useState(null);
     const [petName, setPetName] = useState('');
     const [reason, setReason] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
     const [isBooking, setIsBooking] = useState(false);
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -221,29 +222,29 @@ const DoctorBooking = () => {
                                                             disabled={isBooking || !petName}
                                                             onClick={async () => {
                                                                 try {
-                                                                    setIsBooking(true);
-                                                                    const token = sessionStorage.getItem('token');
-                                                                    const dateObj = new Date();
-                                                                    if (selectedDate === 'Tomorrow') dateObj.setDate(dateObj.getDate() + 1);
-                                                                    
-                                                                    await axios.post(`${API_URL}/api/appointments/book`, {
-                                                                        doctorId: doc.id,
-                                                                        date: dateObj.toISOString().split('T')[0],
-                                                                        time: selectedTime,
-                                                                        petName,
-                                                                        reason
-                                                                    }, { headers: { Authorization: `Bearer ${token}` } });
+                                                                     setIsBooking(true);
+                                                                     const token = sessionStorage.getItem('token');
+                                                                     const dateObj = new Date();
+                                                                     if (selectedDate === 'Tomorrow') dateObj.setDate(dateObj.getDate() + 1);
+                                                                     
+                                                                     await axios.post(`${API_URL}/api/appointments/book`, {
+                                                                         doctorId: doc.id,
+                                                                         date: dateObj.toISOString().split('T')[0],
+                                                                         time: selectedTime,
+                                                                         petName,
+                                                                         reason
+                                                                     }, { headers: { Authorization: `Bearer ${token}` } });
 
-                                                                    toast.success("Appointment Confirmed!");
-                                                                    setActiveDoctor(null); setSelectedDate(null); setSelectedTime(null);
-                                                                    setPetName(''); setReason('');
-                                                                } catch (err) {
-                                                                    toast.error("Scheduling failed");
-                                                                } finally {
-                                                                    setIsBooking(false);
-                                                                }
+                                                                     toast.success("Appointment Confirmed!");
+                                                                     setActiveDoctor(null); setSelectedDate(null); setSelectedTime(null);
+                                                                     setPetName(''); setReason('');
+                                                                 } catch (err) {
+                                                                     toast.error("Scheduling failed");
+                                                                 } finally {
+                                                                     setIsBooking(false);
+                                                                 }
                                                             }}
-                                                            className="btn-gradient !py-5 !px-12 !text-[10px] w-full md:w-auto shadow-emerald-500/20"
+                                                            className="btn-gradient !py-5 !px-12 !text-[10px] w-full md:w-auto shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all border border-white/10"
                                                         >
                                                             {isBooking ? 'CONFIRMING...' : 'FINALIZE BOOKING'}
                                                         </button>

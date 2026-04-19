@@ -9,6 +9,9 @@ const AppointmentSchema = new mongoose.Schema({
     diagnosis: { type: String },
     prescription: { type: String },
     notes: { type: String },
+    recommendedProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+    paymentMethod: { type: String, enum: ['Card', 'UPI', 'PayPal', 'Cash'], default: 'Cash' },
+    paymentStatus: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Appointment', AppointmentSchema);

@@ -15,20 +15,26 @@ export const CartProvider = ({ children }) => {
         localStorage.setItem('petco_cart', JSON.stringify(cart));
     }, [cart]);
 
-    const addToCart = (product) => {
+    const addToCart = (product, quantity = 1) => {
+        let isExisting = false;
         setCart(prevCart => {
             const existingItem = prevCart.find(item => item._id === product._id || item.id === product.id);
             if (existingItem) {
-                toast.success(`Increased quantity for ${product.name}`);
+                isExisting = true;
                 return prevCart.map(item => 
                     (item._id === product._id || item.id === product.id) 
-                    ? { ...item, quantity: item.quantity + 1 } 
+                    ? { ...item, quantity: item.quantity + quantity } 
                     : item
                 );
             }
-            toast.success(`Added ${product.name} to cart`);
-            return [...prevCart, { ...product, quantity: 1 }];
+            return [...prevCart, { ...product, quantity }];
         });
+
+        if (isExisting) {
+            toast.success(`Increased quantity for ${product.name}`);
+        } else {
+            toast.success(`Added ${product.name} to cart`);
+        }
     };
 
     const removeFromCart = (productId) => {

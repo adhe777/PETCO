@@ -86,9 +86,14 @@ const Hero = () => {
             <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
           </Link>
           {!isDoctor && (
-            <Link to="/doctor" className="glass-premium !rounded-3xl !py-6 !px-12 text-sm font-black uppercase tracking-widest text-white border-white/10 hover:border-emerald-500/30 transition-all hover:bg-emerald-500/5 backdrop-blur-3xl">
-              Consult Neural Vet
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+              <Link to="/doctor" className="glass-premium !rounded-3xl !py-6 !px-12 text-sm font-black uppercase tracking-widest text-white border-white/10 hover:border-emerald-500/30 transition-all hover:bg-emerald-500/5 backdrop-blur-3xl">
+                Consult Neural Vet
+              </Link>
+              <Link to="/appointments" className="glass-premium !rounded-3xl !py-6 !px-10 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 border-white/10 hover:border-emerald-500/30 transition-all hover:bg-emerald-500/5 backdrop-blur-3xl flex items-center justify-center gap-3">
+                <HeartPulse size={14} /> My Appointments
+              </Link>
+            </div>
           )}
         </motion.div>
       </motion.div>

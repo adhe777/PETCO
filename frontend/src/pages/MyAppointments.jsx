@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Clock, User, Stethoscope, FileText, Pill, AlertCircle, Sparkles, ChevronRight, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Calendar, Clock, User, Stethoscope, FileText, Pill, AlertCircle, Sparkles, ChevronRight, ArrowRight, ShieldCheck, ShoppingCart } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 import axios from 'axios';
 import { API_URL } from '../config';
 
@@ -9,6 +10,7 @@ const MyAppointments = () => {
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { addToCart } = useCart();
 
     useEffect(() => {
         const fetchAppointments = async () => {
@@ -187,6 +189,32 @@ const MyAppointments = () => {
                                                 )}
                                             </div>
                                         )}
+                                        
+                                        {apt.recommendedProducts && apt.recommendedProducts.length > 0 && (
+                                            <div className="space-y-4 pt-6 border-t border-white/5 mx-8 mb-8 pb-4">
+                                                <div className="flex items-center gap-2 text-cyan-400 text-[9px] font-black uppercase tracking-[0.3em] mb-4">
+                                                    <Sparkles size={14} /> Recommended Products
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    {apt.recommendedProducts.map((prod) => (
+                                                        <div key={prod._id} className="glass-premium border-white/5 p-4 rounded-xl flex items-center justify-between group/prod hover:border-emerald-500/30 transition-all">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-black text-white">{prod.name}</span>
+                                                                <span className="text-[10px] text-emerald-400 font-bold">₹{prod.price}</span>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => addToCart(prod, 1)}
+                                                                className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all shadow-xl shadow-emerald-500/5 active:scale-95"
+                                                                title="Add to Cart"
+                                                            >
+                                                                <ShoppingCart size={16} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
                                     </div>
 
                                     {apt.status === 'Pending' && (

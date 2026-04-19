@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
 import MyAppointments from './pages/MyAppointments';
+import OrderHistory from './pages/OrderHistory';
 import AdminDashboard from './components/AdminDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
 import { Toaster } from 'react-hot-toast';
@@ -69,6 +70,7 @@ function App() {
                     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                     <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute><MyAppointments /></ProtectedRoute>} />
+                    <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
                     
                     <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                     <Route path="/doctor-dashboard" element={<DoctorRoute><DoctorDashboard user={JSON.parse(sessionStorage.getItem('user') || '{}')} handleLogout={() => { sessionStorage.clear(); window.location.href = '/login'; }} /></DoctorRoute>} />

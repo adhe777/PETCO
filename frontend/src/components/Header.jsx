@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PawPrint, User, ShoppingCart, Search, Menu, X, Sun, Moon, ArrowRight, Calendar, Bell, LogOut } from 'lucide-react';
+import { PawPrint, User, ShoppingCart, Search, Menu, X, Sun, Moon, LogOut, ChevronDown, Package, Activity, Stethoscope } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../context/CartContext';
+import NotificationBell from './NotificationBell';
 
 const Header = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [isActivitiesOpen, setIsActivitiesOpen] = useState(false);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [isScrolled, setIsScrolled] = useState(false);
     const navigate = useNavigate();
@@ -33,21 +35,25 @@ const Header = () => {
 
     const user = JSON.parse(sessionStorage.getItem('user') || '{}');
     const isDoctor = user.role === 'Veterinarian' || user.role === 'doctor';
+    const isAdmin = user.role === 'admin' || user.role === 'Administrator';
 
-    const navLinks = [
+    const mainLinks = [
         { name: 'Home', path: '/' },
         { name: 'Marketplace', path: '/marketplace' },
-        ...(!isDoctor && user.role !== 'admin' && user.role !== 'Administrator' ? [
-            { name: 'Appointments', path: '/doctor' },
-            { name: 'Smart Care', path: '/ai-diag' },
+        ...(!isDoctor && !isAdmin ? [
+            { name: 'PetAssistant', path: '/ai-diag' },
         ] : []),
-        ...(isDoctor ? [
-            { name: 'Dashboard', path: '/doctor-dashboard' },
-        ] : []),
-        ...(user.role === 'admin' || user.role === 'Administrator' ? [
-            { name: 'Dashboard', path: '/admin-dashboard' },
-        ] : []),
+        ...(isDoctor ? [{ name: 'Dashboard', path: '/doctor-dashboard' }] : []),
+        ...(isAdmin ? [{ name: 'Dashboard', path: '/admin-dashboard' }] : []),
     ];
+
+    const activityLinks = !isDoctor && !isAdmin ? [
+        { name: 'Book Doctor', path: '/doctor', icon: Stethoscope },
+        { name: 'My Appointments', path: '/appointments', icon: Activity },
+        { name: 'Order History', path: '/orders', icon: Package },
+    ] : [];
+
+    const navLinks = [...mainLinks, ...activityLinks]; // For mobile compatibility
 
     const location = useLocation();
 
@@ -69,18 +75,55 @@ const Header = () => {
                         </Link>
 
                         {/* --- Desktop Nav --- */}
-                        <div className="hidden lg:flex items-center gap-8">
-                            {navLinks.map((link) => (
+                        <div className="hidden lg:flex items-center gap-6">
+                            {mainLinks.map((link) => (
                                 <Link 
                                     key={link.name} 
                                     to={link.path} 
-                                    className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all transform hover:-translate-y-0.5 ${
+                                    className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-all transform hover:-translate-y-0.5 ${
                                         location.pathname === link.path ? 'text-emerald-500' : 'text-gray-400 hover:text-white'
                                     }`}
                                 >
                                     {link.name}
                                 </Link>
                             ))}
+
+                            {activityLinks.length > 0 && (
+                                <div className="relative group" onMouseEnter={() => setIsActivitiesOpen(true)} onMouseLeave={() => setIsActivitiesOpen(false)}>
+                                    <button className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] transition-all transform ${
+                                        activityLinks.some(l => location.pathname === l.path) ? 'text-emerald-500' : 'text-gray-400 hover:text-white'
+                                    }`}>
+                                        Active Services
+                                        <ChevronDown size={14} className={`transition-transform duration-300 ${isActivitiesOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isActivitiesOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                className="absolute top-full left-0 mt-4 w-56 glass-premium border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 p-2"
+                                            >
+                                                {activityLinks.map((link) => (
+                                                    <Link
+                                                        key={link.name}
+                                                        to={link.path}
+                                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${
+                                                            location.pathname === link.path 
+                                                                ? 'bg-emerald-500/10 text-emerald-500' 
+                                                                : 'text-muted hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <link.icon size={14} />
+                                                        {link.name}
+                                                    </Link>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
                         </div>
 
                         {/* --- Action Controls --- */}
@@ -102,31 +145,37 @@ const Header = () => {
                                 </button>
                             </div>
 
-                            {/* Cart */}
-                            <Link
-                                to="/cart"
-                                className="relative p-3 bg-white/5 border border-white/10 rounded-2xl text-muted hover:text-emerald-500 transition-all hover:scale-105 active:scale-95 shadow-sm group"
-                            >
-                                <ShoppingCart size={20} />
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-[var(--midnight)] shadow-md group-hover:animate-bounce">
-                                    {cartCount}
-                                </span>
-                            </Link>
+                            {/* Notifications & Cart */}
+                            {user.role !== 'admin' && user.role !== 'Administrator' && (
+                                <Link
+                                    to="/cart"
+                                    className="relative p-3 bg-white/5 border border-white/10 rounded-2xl text-muted hover:text-emerald-500 transition-all hover:scale-105 active:scale-95 shadow-sm group"
+                                >
+                                    <ShoppingCart size={20} />
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-[var(--midnight)] shadow-md group-hover:animate-bounce">
+                                        {cartCount}
+                                    </span>
+                                </Link>
+                            )}
 
-                            {/* Auth / Profile */}
+                            {/* Notification Bell */}
+                            {sessionStorage.getItem('user') && <NotificationBell />}
+
+                            {/* Auth / Profile Group */}
                             {sessionStorage.getItem('user') ? (
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1.5 p-1 bg-white/5 border border-white/10 rounded-2xl">
                                     <Link
                                         to="/profile"
-                                        className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all hover:scale-105 shadow-inner ${
-                                            location.pathname === '/profile' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-500 hover:border-emerald-500/40'
+                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                                            location.pathname === '/profile' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-muted hover:text-white hover:bg-white/10'
                                         }`}
+                                        title="Profile"
                                     >
-                                        <User size={20} />
+                                        <User size={18} />
                                     </Link>
                                     <button
                                         onClick={() => { sessionStorage.clear(); window.location.href = '/login'; }}
-                                        className="w-11 h-11 rounded-2xl flex items-center justify-center bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all hover:scale-105 active:scale-95"
+                                        className="w-10 h-10 rounded-xl flex items-center justify-center text-muted hover:text-red-400 hover:bg-red-500/10 transition-all"
                                         title="Logout"
                                     >
                                         <LogOut size={18} />
@@ -176,9 +225,11 @@ const Header = () => {
                             ))}
                             <div className="h-px bg-white/10 w-full"></div>
                             <div className="flex justify-center gap-6">
-                                <Link to="/cart" className="p-4 bg-white/5 rounded-2xl" onClick={() => setIsMenuOpen(false)}>
-                                    <ShoppingCart size={24} className="text-muted" />
-                                </Link>
+                                {user.role !== 'admin' && user.role !== 'Administrator' && (
+                                    <Link to="/cart" className="p-4 bg-white/5 rounded-2xl" onClick={() => setIsMenuOpen(false)}>
+                                        <ShoppingCart size={24} className="text-muted" />
+                                    </Link>
+                                )}
                                 <Link to="/profile" className="p-4 bg-white/5 rounded-2xl" onClick={() => setIsMenuOpen(false)}>
                                     <User size={24} className="text-muted" />
                                 </Link>

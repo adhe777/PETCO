@@ -168,7 +168,6 @@ const Login = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center px-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted">Password</label>
-                                    <Link to="/forgot" className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 hover:text-white transition-colors">Forgot?</Link>
                                 </div>
                                 <div className="relative group">
                                     <div className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-emerald-500 transition-colors">

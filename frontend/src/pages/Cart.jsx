@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trash2, ArrowRight, Package, ShieldCheck, Tag, ShoppingBag, Sparkles, CreditCard, ChevronLeft, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Phone, User as UserIcon, Trash2, ArrowRight, Package, ShieldCheck, Tag, ShoppingBag, Sparkles, CreditCard, ChevronLeft, Loader2, Smartphone, Globe, Banknote } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,11 +9,46 @@ import { API_URL } from '../config';
 
 const Cart = () => {
     const { cart, removeFromCart, updateQuantity, cartTotal, clearCart } = useCart();
+    const [shippingDetails, setShippingDetails] = useState({
+        name: '',
+        phone: '',
+        address: '',
+        city: '',
+        pincode: ''
+    });
+    const [fetchingProfile, setFetchingProfile] = useState(true);
+    const [paymentMethod, setPaymentMethod] = useState('Cash on Delivery');
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const token = sessionStorage.getItem('token');
+                if (!token) return;
+                const res = await axios.get(`${API_URL}/api/auth/me`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const user = res.data;
+                setShippingDetails({
+                    name: user.name || '',
+                    phone: user.phone || '',
+                    address: user.savedAddress || '',
+                    city: user.city || '',
+                    pincode: user.pincode || ''
+                });
+            } catch (err) {
+                console.error("Failed to fetch profile for auto-suggestion:", err);
+            } finally {
+                setFetchingProfile(false);
+            }
+        };
+        fetchProfile();
+    }, []);
     const navigate = useNavigate();
     const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
     const handleCheckout = async () => {
         if (cart.length === 0) return toast.error("Cart is empty");
+        if (!shippingDetails.address || !shippingDetails.phone) return toast.error("Please provide shipping address and phone number");
         
         const loadingToast = toast.loading("Processing your order...");
         try {
@@ -26,7 +61,11 @@ const Cart = () => {
                     sellerId: item.sellerId?._id || item.sellerId || "60d0fe4f5311236168a109ca"
                 })),
                 totalAmount: cartTotal,
-                shippingAddress: user.address || "Sector 7, Cyber Hub, Bengaluru, IN",
+                shippingAddress: shippingDetails.address,
+                phone: shippingDetails.phone,
+                city: shippingDetails.city,
+                pincode: shippingDetails.pincode,
+                paymentMethod,
                 status: 'Pending'
             };
 
@@ -136,7 +175,115 @@ const Cart = () => {
                         </div>
                     </div>
 
-                    <div className="lg:w-1/3">
+                    <div className="lg:w-1/3 space-y-8">
+                        <motion.div 
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="glass-premium p-10 rounded-[3rem] border-white/10 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 p-10 opacity-[0.05] pointer-events-none">
+                                <CreditCard size={100} className="text-cyan-500" />
+                            </div>
+                            <h3 className="text-xl font-black text-white mb-8 tracking-tight uppercase flex items-center gap-3">
+                                <CreditCard size={18} className="text-cyan-500" /> Payment Method
+                            </h3>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                {[
+                                    { id: 'Card', icon: CreditCard, label: 'Card' },
+                                    { id: 'UPI', icon: Smartphone, label: 'UPI' },
+                                    { id: 'PayPal', icon: Globe, label: 'PayPal' },
+                                    { id: 'Cash on Delivery', icon: Banknote, label: 'COD' }
+                                ].map((method) => (
+                                    <button
+                                        key={method.id}
+                                        onClick={() => setPaymentMethod(method.id)}
+                                        className={`p-5 rounded-2xl border flex flex-col items-center gap-3 transition-all ${paymentMethod === method.id ? 'bg-cyan-500/10 border-cyan-500 text-cyan-500 shadow-lg shadow-cyan-500/10' : 'border-white/10 text-muted hover:border-cyan-500/40'}`}
+                                    >
+                                        <method.icon size={24} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{method.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                        <motion.div 
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="glass-premium p-10 rounded-[3rem] border-white/10 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 p-10 opacity-[0.05] pointer-events-none">
+                                <MapPin size={100} className="text-emerald-500" />
+                            </div>
+                            <h3 className="text-xl font-black text-white mb-8 tracking-tight uppercase flex items-center gap-3">
+                                <MapPin size={18} className="text-emerald-500" /> Shipping Details
+                            </h3>
+                            
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase tracking-[0.3em] text-muted ml-2">Receiver Name</label>
+                                    <div className="relative">
+                                        <UserIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Full Name"
+                                            value={shippingDetails.name}
+                                            onChange={(e) => setShippingDetails({...shippingDetails, name: e.target.value})}
+                                            className="glass-input !pl-12 !py-3 text-xs" 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase tracking-[0.3em] text-muted ml-2">Contact Number</label>
+                                    <div className="relative">
+                                        <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="+91 00000 00000"
+                                            value={shippingDetails.phone}
+                                            onChange={(e) => setShippingDetails({...shippingDetails, phone: e.target.value})}
+                                            className="glass-input !pl-12 !py-3 text-xs" 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase tracking-[0.3em] text-muted ml-2">Street Address</label>
+                                    <textarea 
+                                        placeholder="Flat, House no., Building, Company, Apartment"
+                                        value={shippingDetails.address}
+                                        onChange={(e) => setShippingDetails({...shippingDetails, address: e.target.value})}
+                                        className="glass-input !py-3 text-xs h-20 resize-none" 
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-[0.3em] text-muted ml-2">City</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="City"
+                                            value={shippingDetails.city}
+                                            onChange={(e) => setShippingDetails({...shippingDetails, city: e.target.value})}
+                                            className="glass-input !py-3 text-xs" 
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-[0.3em] text-muted ml-2">PIN Code</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="000 000"
+                                            value={shippingDetails.pincode}
+                                            onChange={(e) => setShippingDetails({...shippingDetails, pincode: e.target.value})}
+                                            className="glass-input !py-3 text-xs" 
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-[8px] font-bold text-emerald-500/60 uppercase tracking-widest text-center mt-4">
+                                    ✨ Amazon-style auto-save enabled
+                                </p>
+                            </div>
+                        </motion.div>
                         <motion.div 
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -166,14 +313,20 @@ const Cart = () => {
                                 </div>
                             </div>
 
-                            <button 
-                                onClick={handleCheckout} 
-                                disabled={cart.length === 0}
-                                className="btn-primary w-full !py-6 !text-[11px] !font-black flex items-center justify-center gap-4 group shadow-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                                PLACE ORDER
-                                <ArrowRight size={20} className="group-hover:translate-x-3 transition-transform" />
-                            </button>
+                            {user.role === 'admin' || user.role === 'Administrator' ? (
+                                <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl text-amber-500 font-bold text-center text-xs uppercase tracking-widest leading-relaxed">
+                                    Administrative accounts are restricted from placing orders. 
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={handleCheckout} 
+                                    disabled={cart.length === 0}
+                                    className="btn-primary w-full !py-6 !text-[11px] !font-black flex items-center justify-center gap-4 group shadow-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    PLACE ORDER
+                                    <ArrowRight size={20} className="group-hover:translate-x-3 transition-transform" />
+                                </button>
+                            )}
 
                             <div className="mt-10 flex flex-col gap-4">
                                 <div className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 group hover:border-emerald-500/30 transition-all">

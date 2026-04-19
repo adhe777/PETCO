@@ -109,6 +109,11 @@
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
         animation: shimmer-load 2s infinite;
     }
+    .btn-gradient {
+        @apply bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-black px-6 py-4 rounded-xl 
+           hover:scale-105 active:scale-95 transition-all duration-300 shadow-xl shadow-emerald-500/20 
+           uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 border-none cursor-pointer;
+    }
 }
 
 /* --- Keyframes & Animation Helpers --- */

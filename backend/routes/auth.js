@@ -3,6 +3,18 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { auth } = require('../middleware/authMiddleware');
+
+// Get current user profile
+router.get('/me', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Register
 router.post('/register', async (req, res) => {
@@ -12,14 +24,19 @@ router.post('/register', async (req, res) => {
             phone, specialization, qualification, experience, clinicAddress, licenseNumber 
         } = req.body;
         
+        console.log(`[AUTH] Registration request received for: ${email} (${role})`);
+        console.log(`[AUTH] Payload:`, { name, email, role, phone, licenseNumber });
+
         // Check for existing user
         const existingUser = await User.findOne({ email });
         if (existingUser) {
+            console.log(`[AUTH] Registration failed: Email ${email} already exists.`);
             return res.status(400).json({ error: 'Email already registered. Please login or use a different email.' });
         }
 
         // Prevent public registration of admin accounts
         if (role === 'admin' || role === 'Administrator') {
+            console.log(`[AUTH] Registration blocked: Unauthorized attempt to create admin via public endpoint.`);
             return res.status(403).json({ error: 'Direct admin registration is restricted. Please contact system owner.' });
         }
 
@@ -28,7 +45,10 @@ router.post('/register', async (req, res) => {
             isApproved = false;
         }
 
+        console.log(`[AUTH] Hashing password...`);
         const hashedPassword = await bcrypt.hash(password, 10);
+        
+        console.log(`[AUTH] Creating user object...`);
         const user = new User({
             name,
             email,
@@ -44,12 +64,14 @@ router.post('/register', async (req, res) => {
                 licenseNumber
             }
         });
+        
+        console.log(`[AUTH] Saving user to database...`);
         await user.save();
-        console.log(`User registered: ${email} (${role})`);
+        console.log(`[AUTH] User registered successfully: ${email}`);
         res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {
-        console.error('Registration Error:', err);
-        res.status(500).json({ error: 'Server error during registration. Please try again later.' });
+        console.error('[AUTH] CRITICAL ERROR during registration:', err.stack || err.message || err);
+        res.status(500).json({ error: 'Server error during registration. Please check server logs.' });
     }
 });
 

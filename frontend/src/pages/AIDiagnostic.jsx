@@ -10,7 +10,7 @@ const AIDiagnostic = () => {
         {
             id: 1,
             type: 'bot',
-            content: "Hello! I'm your AI pet care assistant. Please describe any symptoms or behavior changes you've noticed in your pet.",
+            content: "Welcome to PETCO SmartCare. I'm your advanced AI pet care assistant. Please describe any symptoms, behavior changes, or upload a photo for visual diagnostic assistance.",
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
     ]);
@@ -18,9 +18,12 @@ const AIDiagnostic = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
     };
 
     useEffect(() => {
@@ -59,6 +62,42 @@ const AIDiagnostic = () => {
         }
     };
 
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsAnalyzing(true);
+        const userMsg = {
+            id: Date.now(),
+            type: 'user',
+            content: "Uploading image for analysis...",
+            image: URL.createObjectURL(file),
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, userMsg]);
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const res = await axios.post(`${API_URL}/api/ai/analyze-image`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                type: 'bot',
+                content: res.data.response,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }]);
+        } catch (err) {
+            toast.error("Image analysis failed. Please try again.");
+        } finally {
+            setIsAnalyzing(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
+
     const clearChat = () => {
         setMessages([{
             id: 1,
@@ -69,19 +108,20 @@ const AIDiagnostic = () => {
     };
 
     return (
-        <div className="pt-24 min-h-screen bg-midnight transition-colors duration-300 flex flex-col overflow-hidden">
+        <div className="h-screen bg-midnight flex flex-col pt-20 overflow-hidden">
             
-            <div className="fixed inset-0 pointer-events-none -z-10">
+            {/* Background elements */}
+            <div className="fixed inset-0 pointer-events-none -z-10 bg-midnight">
                 <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-emerald-500/5 rounded-full blur-[180px] -translate-x-1/2 -translate-y-1/2 animate-pulse"></div>
                 <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[150px] translate-x-1/3 translate-y-1/3 animate-pulse" style={{ animationDelay: '2s' }}></div>
             </div>
 
-            <div className="container mx-auto px-6 max-w-5xl flex-1 flex flex-col pb-12">
+            <div className="flex-1 container mx-auto px-6 max-w-5xl flex flex-col min-h-0 pb-6">
 
                 <motion.div 
-                    initial={{ opacity: 0, y: -20 }}
+                    initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col md:flex-row justify-between items-center glass-premium border-white/10 p-8 mb-10 shadow-emerald-500/5"
+                    className="flex flex-col md:flex-row justify-between items-center glass-premium border-white/10 p-6 mb-4 shadow-emerald-500/5"
                 >
                     <div className="flex items-center gap-6">
                         <div className="relative">
@@ -92,8 +132,8 @@ const AIDiagnostic = () => {
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h2 className="text-2xl font-black text-white tracking-tight uppercase">Smart Care AI</h2>
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 uppercase tracking-widest">Online</span>
+                                <h2 className="text-2xl font-black text-white tracking-tight uppercase">PetAssistant AI</h2>
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 uppercase tracking-widest">Neural Link Active</span>
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
@@ -119,7 +159,7 @@ const AIDiagnostic = () => {
                     </div>
                 </motion.div>
 
-                <div className="flex-1 flex flex-col glass-premium border-white/5 shadow-2xl overflow-hidden backdrop-blur-3xl relative min-h-[500px]">
+                <div className="flex-1 flex flex-col glass-premium border-white/5 shadow-2xl overflow-hidden backdrop-blur-3xl relative min-h-0">
                     
                     <div className="absolute inset-0 pointer-events-none opacity-20">
                         <div className="absolute top-[20%] right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px]"></div>
@@ -128,7 +168,7 @@ const AIDiagnostic = () => {
 
                     <div
                         ref={chatContainerRef}
-                        className="flex-1 overflow-y-auto p-8 md:p-12 space-y-10 scroll-smooth custom-scrollbar"
+                        className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 scroll-smooth custom-scrollbar"
                     >
                         <AnimatePresence mode="popLayout">
                             {messages.map((msg) => (
@@ -151,6 +191,7 @@ const AIDiagnostic = () => {
                                                     ? 'bg-emerald-500 text-white rounded-tr-none'
                                                     : 'glass-premium text-white rounded-tl-none border-white/10 border-l-emerald-500/40 border-l-4'
                                                 }`}>
+                                                {msg.image && <img src={msg.image} alt="Upload" className="w-full max-w-[300px] rounded-2xl mb-4 shadow-xl border border-white/10" />}
                                                 {msg.content}
                                             </div>
                                             <div className="flex items-center gap-3 mt-3 px-2">
@@ -199,7 +240,8 @@ const AIDiagnostic = () => {
                     <div className="p-8 bg-midnight-soft/30 border-t border-white/5 backdrop-blur-2xl">
                         <form onSubmit={handleSend} className="flex items-center gap-6">
                             <div className="flex-1 relative group">
-                                <button type="button" className="absolute left-6 top-1/2 -translate-y-1/2 text-muted hover:text-emerald-400 transition-all">
+                                <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute left-6 top-1/2 -translate-y-1/2 text-muted hover:text-emerald-400 transition-all">
                                     <Upload size={22} />
                                 </button>
                                 <input

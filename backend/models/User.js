@@ -12,6 +12,9 @@ const UserSchema = new mongoose.Schema({
     qualification: { type: String },
     clinicAddress: { type: String },
     isApproved: { type: Boolean, default: false },
+    savedAddress: { type: String, default: '' },
+    city: { type: String, default: '' },
+    pincode: { type: String, default: '' },
     eligibilityInfo: {
         licenseNumber: { type: String },
         storeName: { type: String },

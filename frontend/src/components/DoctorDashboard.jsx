@@ -15,9 +15,35 @@ const ManageModal = ({ appointment, onClose, onUpdate }) => {
         status: appointment.status,
         diagnosis: appointment.diagnosis || '',
         prescription: appointment.prescription || '',
-        notes: appointment.notes || ''
+        notes: appointment.notes || '',
+        recommendedProducts: appointment.recommendedProducts || []
     });
     const [saving, setSaving] = useState(false);
+    const [availableProducts, setAvailableProducts] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/api/products`);
+                setAvailableProducts(res.data);
+            } catch (err) {
+                console.error('Failed to fetch products');
+            }
+        };
+        fetchProducts();
+    }, []);
+    
+    const toggleProduct = (productId) => {
+        setFormData(prev => {
+            const isSelected = prev.recommendedProducts.includes(productId);
+            if (isSelected) {
+                return { ...prev, recommendedProducts: prev.recommendedProducts.filter(id => id !== productId) };
+            } else {
+                return { ...prev, recommendedProducts: [...prev.recommendedProducts, productId] };
+            }
+        });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -101,6 +127,41 @@ const ManageModal = ({ appointment, onClose, onUpdate }) => {
                             placeholder="Medicine, dosage, and instructions..."
                             className="glass-input !py-5 !px-6 text-base h-32"
                         />
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-[0.4em] text-muted ml-1 flex items-center gap-2">
+                            <Sparkles size={12} className="text-cyan-500" /> Recommend Products
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="glass-input !py-3 !px-4 text-xs mb-2 bg-white/5 placeholder-white/20 text-white w-full rounded-2xl outline-none focus:border-emerald-500/50 transition-all border border-transparent"
+                        />
+                        <div className="glass-input !p-4 max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                            {availableProducts
+                                .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                .map(p => (
+                                <label key={p._id} className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors border ${formData.recommendedProducts.includes(p._id) ? 'bg-emerald-500/10 border-emerald-500/30' : 'hover:bg-white/5 border-transparent'}`}>
+                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${formData.recommendedProducts.includes(p._id) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-emerald-500/30'}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            className="hidden" 
+                                            checked={formData.recommendedProducts.includes(p._id)}
+                                            onChange={() => toggleProduct(p._id)} 
+                                        />
+                                        {formData.recommendedProducts.includes(p._id) && <Check size={14} />}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-black text-white">{p.name}</span>
+                                        <span className="text-[10px] text-emerald-400 font-bold">₹{p.price}</span>
+                                    </div>
+                                </label>
+                            ))}
+                            {availableProducts.length === 0 && <p className="text-xs text-muted">No products available to recommend.</p>}
+                        </div>
                     </div>
 
                     <div className="pt-6 flex gap-6">

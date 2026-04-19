@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { User, Package, MapPin, Calendar, Activity, ArrowRight, LogOut, Settings, ShieldCheck, Sparkles, Bell, CreditCard } from 'lucide-react';
+import { User, Package, MapPin, Calendar, Activity, ArrowRight, LogOut, Settings, ShieldCheck, Sparkles, Bell, CreditCard, ShoppingBag, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DoctorDashboard from '../components/DoctorDashboard';
-import SellerDashboard from '../components/SellerDashboard';
+import AdminDashboard from '../components/AdminDashboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_URL } from '../config';
 
-const PatientDashboard = ({ user, latestAppointment, navItems, orders, handleLogout, getStatusStyle }) => {
+const PatientDashboard = ({ user, latestAppointment, navItems, orders, handleLogout, getStatusStyle, handleCancelOrder }) => {
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -44,10 +44,10 @@ const PatientDashboard = ({ user, latestAppointment, navItems, orders, handleLog
                         
                         <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                             <div className="px-6 py-3 rounded-2xl glass-premium border-white/10 text-white text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3">
-                                <MapPin size={14} className="text-emerald-500" /> Kochi, India
+                                <MapPin size={14} className="text-emerald-500" /> {user.savedAddress || 'Address Not Set'}
                             </div>
                             <div className="px-6 py-3 rounded-2xl glass-premium border-white/10 text-white text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3">
-                                <Activity size={14} className="text-cyan-500" /> Profile Verified
+                                <Phone size={14} className="text-cyan-500" /> {user.phone || 'Contact Not Set'}
                             </div>
                         </div>
                     </div>
@@ -124,66 +124,16 @@ const PatientDashboard = ({ user, latestAppointment, navItems, orders, handleLog
                     </button>
                 </div>
             </div>
-
-            <div className="space-y-8">
-                <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-4">
-                    <Package className="text-emerald-500" size={28} />
-                    Order History
-                </h2>
-                
-                <div className="space-y-6">
-                    {orders && orders.length > 0 ? (
-                        orders.map((order) => (
-                            <motion.div 
-                                key={order._id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="glass-premium p-8 rounded-[3rem] border-white/5 flex flex-col md:flex-row items-center justify-between gap-8 group hover:border-emerald-500/20 transition-all"
-                            >
-                                <div className="flex items-center gap-8">
-                                    <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-muted group-hover:text-emerald-400 transition-colors">
-                                        <ShoppingBag size={32} />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h4 className="font-black text-xl text-white">Order #{order._id.slice(-6).toUpperCase()}</h4>
-                                            <span className={`px-3 py-1 rounded-xl text-[8px] font-black uppercase tracking-widest border ${getStatusStyle(order.status)}`}>
-                                                {order.status}
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] text-muted font-black uppercase tracking-[0.3em]">
-                                            {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {order.products?.length || 0} Items
-                                        </p>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-10 w-full md:w-auto">
-                                    <div className="text-3xl font-black text-white tracking-tighter">
-                                        <span className="text-sm font-bold text-muted mr-1">₹</span>{order.totalAmount.toLocaleString()}
-                                    </div>
-                                    <button className="p-4 rounded-2xl glass-premium border-white/10 text-muted hover:text-white transition-all">
-                                        <ArrowRight size={20} />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))
-                    ) : (
-                        <div className="p-20 border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center justify-center text-center opacity-30">
-                            <Package className="mb-6 text-muted" size={48} />
-                            <p className="font-black uppercase tracking-[0.5em] text-[10px]">No order history found</p>
-                        </div>
-                    )}
-                </div>
-            </div>
         </motion.div>
     );
 };
 
 const Profile = () => {
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
     const navigate = useNavigate();
+    const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user') || '{}'));
     const [latestAppointment, setLatestAppointment] = useState(null);
     const [orders, setOrders] = useState([]);
+    const [fetching, setFetching] = useState(true);
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -191,11 +141,14 @@ const Profile = () => {
                 const token = sessionStorage.getItem('token');
                 if (!token) return;
 
-                const [appRes, orderRes] = await Promise.all([
+                const [appRes, orderRes, userRes] = await Promise.all([
                     axios.get(`${API_URL}/api/appointments/my`, {
                         headers: { Authorization: `Bearer ${token}` }
                     }),
                     axios.get(`${API_URL}/api/orders/user/${user.id || user._id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }),
+                    axios.get(`${API_URL}/api/auth/me`, {
                         headers: { Authorization: `Bearer ${token}` }
                     })
                 ]);
@@ -204,12 +157,30 @@ const Profile = () => {
                     setLatestAppointment(appRes.data[0]);
                 }
                 setOrders(orderRes.data);
+                if (userRes.data) {
+                    setUser(userRes.data);
+                }
             } catch (err) {
                 console.error('Error fetching profile data:', err);
+            } finally {
+                setFetching(false);
             }
         };
         fetchProfileData();
     }, []);
+
+    const handleCancelOrder = async (orderId, reason) => {
+        try {
+            const token = sessionStorage.getItem('token');
+            const res = await axios.patch(`${API_URL}/api/orders/${orderId}/cancel`, { reason }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success("Order cancelled successfully");
+            setOrders(orders.map(o => o._id === orderId ? res.data : o));
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to cancel order");
+        }
+    };
 
     const handleLogout = () => {
         sessionStorage.removeItem('user');
@@ -221,14 +192,13 @@ const Profile = () => {
     };
 
     const navItems = [
-        { icon: Package, label: 'My Orders', desc: 'View your order history', path: '/cart', active: true },
-        { icon: Calendar, label: 'Appointments', desc: 'Manage your consultations', path: '/appointments', active: true },
-        { icon: Bell, label: 'Notifications', desc: 'Stay updated on your pet', path: '#', active: false },
-        { icon: User, label: 'My Pets', desc: 'Manage your pet profiles', path: '#', active: false },
+        { icon: Package, label: 'My Orders', desc: 'View your order history', path: '/orders', active: true },
+        { icon: Calendar, label: 'My Appointments', desc: 'Manage your consultations', path: '/appointments', active: true },
+        { icon: Bell, label: 'Notifications', desc: 'Stay updated', path: '#', active: false },
     ];
 
     const isDoctor = user.role === 'Veterinarian' || user.role === 'doctor';
-    const isSeller = user.role === 'admin' || user.role === 'Administrator';
+    const isAdmin = user.role === 'admin' || user.role === 'Administrator';
 
     const getStatusStyle = (status) => {
         switch (status?.toLowerCase()) {
@@ -251,8 +221,8 @@ const Profile = () => {
             <div className="container mx-auto px-6">
                 {isDoctor ? (
                     <DoctorDashboard user={user} handleLogout={handleLogout} />
-                ) : isSeller ? (
-                    <SellerDashboard user={user} handleLogout={handleLogout} />
+                ) : isAdmin ? (
+                    <AdminDashboard />
                 ) : (
                     <PatientDashboard
                         user={user}
@@ -261,6 +231,7 @@ const Profile = () => {
                         orders={orders}
                         handleLogout={handleLogout}
                         getStatusStyle={getStatusStyle}
+                        handleCancelOrder={handleCancelOrder}
                     />
                 )}
             </div>

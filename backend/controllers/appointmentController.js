@@ -15,6 +15,7 @@ const getMyAppointments = async (req, res) => {
         } else {
             appointments = await Appointment.find({ userId: req.user.id })
                 .populate('doctorId', 'name specialization')
+                .populate('recommendedProducts')
                 .sort({ date: -1, createdAt: -1 });
         }
 
@@ -30,7 +31,7 @@ const getMyAppointments = async (req, res) => {
 // @access  Private
 const updateAppointmentStatus = async (req, res) => {
     try {
-        const { status, diagnosis, prescription, notes } = req.body;
+        const { status, diagnosis, prescription, notes, recommendedProducts } = req.body;
         const appointment = await Appointment.findById(req.params.id);
 
         if (!appointment) {
@@ -46,6 +47,7 @@ const updateAppointmentStatus = async (req, res) => {
         if (diagnosis) appointment.diagnosis = diagnosis;
         if (prescription) appointment.prescription = prescription;
         if (notes) appointment.notes = notes;
+        if (recommendedProducts !== undefined) appointment.recommendedProducts = recommendedProducts;
 
         await appointment.save();
         res.status(200).json(appointment);
@@ -60,7 +62,7 @@ const updateAppointmentStatus = async (req, res) => {
 // @access  Private
 const bookAppointment = async (req, res) => {
     try {
-        const { doctorId, date, time, petName, reason } = req.body;
+        const { doctorId, date, time, petName, reason, paymentMethod } = req.body;
 
         if (!doctorId || !date || !time) {
             return res.status(400).json({ message: 'Doctor, date, and time are required' });
@@ -85,6 +87,7 @@ const bookAppointment = async (req, res) => {
             time,
             petName,
             reason,
+            paymentMethod: paymentMethod || 'Cash',
             status: 'Pending'
         });
 

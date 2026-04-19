@@ -2,23 +2,29 @@ import React, { useState, useEffect } from 'react';
 import {
     LayoutDashboard, Users, Shield, Package, ShoppingCart, Activity,
     TrendingUp, CheckCircle, AlertCircle, ArrowRight, X, UserCheck, UserX,
-    Search, Filter, ChevronRight, MessageSquare, MoreVertical, Plus, Edit, Trash2, LogOut
+    Search, Filter, ChevronRight, MessageSquare, MoreVertical, Plus, Edit, Trash2, LogOut, ClipboardX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_URL } from '../config';
+import { swalConfirm } from '../utils/swal';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('Overview');
-    const [stats, setStats] = useState({ users: 0, doctors: 0, products: 0, orders: 0 });
+    const [stats, setStats] = useState({ users: 0, doctors: 0, products: 0, orders: 0, cancelRequests: 0 });
     const [doctors, setDoctors] = useState([]);
     const [users, setUsers] = useState([]);
     const [products, setProducts] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [cancelRequests, setCancelRequests] = useState([]);
+    const [badReviews, setBadReviews] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [rejectModal, setRejectModal] = useState({ open: false, orderId: null, reason: '' });
 
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [currentProduct, setCurrentProduct] = useState(null);
+    const [productImage, setProductImage] = useState(null);
 
     const token = sessionStorage.getItem('token');
     const adminUser = JSON.parse(sessionStorage.getItem('user') || '{}');
@@ -35,74 +41,113 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, doctorsRes, usersRes, productsRes] = await Promise.all([
+            const [statsRes, usersRes, productsRes, ordersRes, cancelRes] = await Promise.all([
                 axios.get(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/api/admin/doctors`, { headers: { Authorization: `Bearer ${token}` } }), // Will implement alias in backend or reuse auth logic
                 axios.get(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/api/products`)
+                axios.get(`${API_URL}/api/products`),
+                axios.get(`${API_URL}/api/admin/orders`, { headers: { Authorization: `Bearer ${token}` } }),
+                axios.get(`${API_URL}/api/admin/cancel-requests`, { headers: { Authorization: `Bearer ${token}` } })
             ]);
             setStats(statsRes.data);
-            // Assuming '/api/admin/users' fetches all users, let's filter doctors here if API doesn't split
             const allUsers = usersRes.data || [];
-            if(doctorsRes) {} // We'll just filter from allUsers instead if we didn't implement '/doctors' route precisely
             setDoctors(allUsers.filter(u => u.role === 'doctor' || u.role === 'Veterinarian'));
             setUsers(allUsers.filter(u => u.role === 'user' || u.role === 'Pet Parent'));
-            setProducts(productsRes.data || []);
+            
+            const allProducts = productsRes.data || [];
+            setProducts(allProducts);
+            
+            // Extract bad reviews (rating <= 2)
+            let bad = [];
+            allProducts.forEach(prod => {
+                if (prod.reviews) {
+                    prod.reviews.forEach(rev => {
+                        if (rev.rating <= 2) {
+                            bad.push({ ...rev, productName: prod.name, productId: prod._id });
+                        }
+                    });
+                }
+            });
+            setBadReviews(bad);
+            setOrders(ordersRes.data || []);
+            setCancelRequests(cancelRes.data || []);
         } catch (err) {
             console.error('Failed to fetch admin data:', err);
-            // Fallback for missing routes
-            if(err.response?.status === 404) {
-               await fallbackFetch();
-            } else {
-               toast.error('Failed to load dashboard data');
-            }
+            toast.error('Failed to load dashboard data');
         } finally {
             setLoading(false);
         }
     };
 
-    const fallbackFetch = async () => {
+    const handleApproveCancel = async (orderId) => {
         try {
-            const [statsRes, usersRes, productsRes] = await Promise.all([
-                axios.get(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/api/products`)
-            ]);
-            setStats(statsRes.data);
-            const allUsers = usersRes.data || [];
-            setDoctors(allUsers.filter(u => u.role === 'doctor' || u.role === 'Veterinarian'));
-            setUsers(allUsers.filter(u => u.role === 'user' || u.role === 'Pet Parent'));
-            setProducts(productsRes.data || []);
-        } catch(e) { console.error('Fallback fetch failed', e); }
-    }
+            await axios.patch(`${API_URL}/api/orders/${orderId}/cancel-approve`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            toast.success('Cancellation approved and user notified!');
+            fetchData();
+        } catch { toast.error('Failed to approve cancellation'); }
+    };
+
+    const handleRejectCancel = async () => {
+        if (!rejectModal.reason.trim()) { toast.error('Please provide a rejection reason'); return; }
+        try {
+            await axios.patch(`${API_URL}/api/orders/${rejectModal.orderId}/cancel-reject`, { rejectionReason: rejectModal.reason }, { headers: { Authorization: `Bearer ${token}` } });
+            toast.success('Cancellation rejected, user notified!');
+            setRejectModal({ open: false, orderId: null, reason: '' });
+            fetchData();
+        } catch { toast.error('Failed to reject cancellation'); }
+    };
 
     const handleDoctorAction = async (id, action) => {
         try {
             await axios.put(`${API_URL}/api/admin/approve-doctor/${id}`, { action }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            toast.success(`Doctor ${action}d successfully`);
+            const actionLabel = action === 'approve' ? 'approved' : 'rejected';
+            toast.success(`Doctor ${actionLabel} successfully`);
             fetchData();
         } catch (err) {
             toast.error(err.response?.data?.message || `Failed to ${action} doctor`);
         }
     };
 
+    const handleUpdateOrderStatus = async (id, status) => {
+        try {
+            await axios.put(`${API_URL}/api/orders/${id}/status`, { status }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Order status updated');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to update status');
+        }
+    };
+
     const handleSaveProduct = async (e) => {
         e.preventDefault();
+        const formData = new FormData();
+        Object.keys(currentProduct).forEach(key => {
+            if (key !== 'image') formData.append(key, currentProduct[key]);
+        });
+        if (productImage) {
+            formData.append('image', productImage);
+        }
+
         try {
+            const config = {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            };
+
             if (currentProduct._id) {
-                await axios.put(`${API_URL}/api/products/${currentProduct._id}`, currentProduct, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await axios.put(`${API_URL}/api/products/${currentProduct._id}`, formData, config);
                 toast.success('Product updated');
             } else {
-                await axios.post(`${API_URL}/api/products`, currentProduct, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await axios.post(`${API_URL}/api/products`, formData, config);
                 toast.success('Product added');
             }
             setIsProductModalOpen(false);
+            setProductImage(null);
             fetchData();
         } catch (err) {
             toast.error('Failed to save product');
@@ -110,7 +155,13 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteProduct = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this product?')) return;
+        const result = await swalConfirm(
+            'Delete Product?',
+            'This action will permanently remove the product from the marketplace.',
+            'Delete Now'
+        );
+        if (!result.isConfirmed) return;
+        
         try {
             await axios.delete(`${API_URL}/api/products/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -122,12 +173,32 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDeleteUser = async (id) => {
+        const result = await swalConfirm(
+            'Remove User?',
+            'This will permanently delete the user account.',
+            'Remove Now'
+        );
+        if (!result.isConfirmed) return;
+        
+        try {
+            await axios.delete(`${API_URL}/api/admin/users/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('User removed successfully');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to remove user');
+        }
+    };
+
     const tabs = [
         { id: 'Overview', icon: LayoutDashboard },
         { id: 'Doctors', icon: Shield },
         { id: 'Users', icon: Users },
         { id: 'Products', icon: Package },
         { id: 'Orders', icon: ShoppingCart },
+        { id: 'Cancellations', icon: ClipboardX, badge: cancelRequests.length },
     ];
 
     return (
@@ -138,7 +209,7 @@ const AdminDashboard = () => {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-4 px-6 py-4 rounded-2xl whitespace-nowrap lg:whitespace-normal font-black text-[10px] uppercase tracking-[0.3em] transition-all flex-shrink-0 ${
+                        className={`relative flex items-center gap-4 px-6 py-4 rounded-2xl whitespace-nowrap lg:whitespace-normal font-black text-[10px] uppercase tracking-[0.3em] transition-all flex-shrink-0 ${
                             activeTab === tab.id 
                             ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20' 
                             : 'text-muted hover:bg-white/5 hover:text-white'
@@ -146,6 +217,9 @@ const AdminDashboard = () => {
                     >
                         <tab.icon size={18} />
                         {tab.id}
+                        {tab.badge > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">{tab.badge}</span>
+                        )}
                     </button>
                 ))}
                 
@@ -191,12 +265,17 @@ const AdminDashboard = () => {
                             {activeTab === 'Overview' && (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                     {[
-                                        { label: 'Total Users', value: stats.users, icon: Users, color: 'cyan' },
-                                        { label: 'Veterinarians', value: stats.doctors, icon: Shield, color: 'emerald' },
-                                        { label: 'Products', value: stats.products, icon: Package, color: 'blue' },
-                                        { label: 'Orders', value: stats.orders, icon: ShoppingCart, color: 'indigo' },
+                                        { label: 'Total Users', value: stats.users, icon: Users, color: 'cyan', tab: 'Users' },
+                                        { label: 'Alerts', value: badReviews.length, icon: AlertCircle, color: 'red', tab: 'Alerts' },
+                                        { label: 'Veterinarians', value: stats.doctors, icon: Shield, color: 'emerald', tab: 'Doctors' },
+                                        { label: 'Products', value: stats.products, icon: Package, color: 'blue', tab: 'Products' },
+                                        { label: 'Orders', value: stats.orders, icon: ShoppingCart, color: 'indigo', tab: 'Orders' },
                                     ].map((stat, i) => (
-                                        <div key={i} className="glass-premium border-white/5 p-8 rounded-[2rem] hover:border-emerald-500/30 transition-all group">
+                                        <div 
+                                            key={i} 
+                                            onClick={() => setActiveTab(stat.tab)}
+                                            className="glass-premium border-white/5 p-8 rounded-[2rem] hover:border-emerald-500/30 transition-all group cursor-pointer"
+                                        >
                                             <div className="p-4 bg-white/5 rounded-2xl w-fit text-white mb-6 group-hover:bg-emerald-500 group-hover:scale-110 transition-all">
                                                 <stat.icon size={24} />
                                             </div>
@@ -275,6 +354,60 @@ const AdminDashboard = () => {
                                 </div>
                             )}
 
+                            {/* USERS TAB */}
+                            {activeTab === 'Users' && (
+                                <div className="glass-premium border-white/5 rounded-[2rem] overflow-hidden">
+                                    <div className="p-8 border-b border-white/5 bg-white/[0.02]">
+                                        <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                            <Users className="text-emerald-500" size={20} /> Registered Pet Parents
+                                        </h2>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-white/[0.01]">
+                                                <tr>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">User Details</th>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Joined Date</th>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Status</th>
+                                                    <th className="px-8 py-6 text-right text-[9px] font-black uppercase tracking-[0.4em] text-muted">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {users.map(u => (
+                                                    <tr key={u._id} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="px-8 py-6">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center font-black text-emerald-500 border border-white/5">
+                                                                    {u.name.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-black text-white text-sm">{u.name}</p>
+                                                                    <p className="text-[10px] text-muted tracking-widest">{u.email}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                                            {new Date(u.createdAt).toLocaleDateString()}
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className="px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                Active User
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <button onClick={() => handleDeleteUser(u._id)} className="px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Remove</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {users.length === 0 && (
+                                                    <tr><td colSpan="4" className="p-12 text-center text-muted text-[10px] font-black uppercase tracking-[0.4em]">No users found</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* PRODUCTS TAB */}
                             {activeTab === 'Products' && (
                                 <div className="space-y-6">
@@ -314,6 +447,178 @@ const AdminDashboard = () => {
                                 </div>
                             )}
 
+                            {/* ALERTS TAB */}
+                            {activeTab === 'Alerts' && (
+                                <div className="glass-premium border-white/5 rounded-[2rem] overflow-hidden">
+                                    <div className="p-8 border-b border-white/5 bg-red-500/5">
+                                        <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                            <AlertCircle className="text-red-500" size={20} /> Action Required: Bad Reviews
+                                        </h2>
+                                        <p className="text-[10px] uppercase tracking-widest text-muted mt-2">Any product review with 2 stars or less appears here.</p>
+                                    </div>
+                                    <div className="p-8 space-y-6">
+                                        {badReviews.length === 0 ? (
+                                            <div className="py-20 text-center opacity-50">
+                                                <CheckCircle size={48} className="mx-auto mb-4 text-emerald-500" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.4em]">No negative alerts!</p>
+                                            </div>
+                                        ) : (
+                                            badReviews.map((rev, idx) => (
+                                                <div key={idx} className="p-6 rounded-2xl bg-white/[0.02] border border-red-500/20 flex flex-col md:flex-row justify-between gap-6">
+                                                    <div>
+                                                        <h4 className="text-red-400 font-bold mb-1">{rev.productName}</h4>
+                                                        <p className="text-2xl text-white italic mb-3">"{rev.comment || 'No comment provided'}"</p>
+                                                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-muted">
+                                                            <span className="flex items-center gap-1 text-red-500">Rating: {rev.rating} ★</span>
+                                                            <span>By: {rev.name}</span>
+                                                            <span>{new Date(rev.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* CANCELLATIONS TAB */}
+                            {activeTab === 'Cancellations' && (
+                                <div className="glass-premium border-white/5 rounded-[2rem] overflow-hidden">
+                                    <div className="p-8 border-b border-white/5 bg-red-500/5 flex justify-between items-center">
+                                        <div>
+                                            <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                                <ClipboardX className="text-red-400" size={20} /> Cancellation Requests
+                                            </h2>
+                                            <p className="text-[10px] text-muted uppercase tracking-widest mt-1">Review and respond to user cancellation requests.</p>
+                                        </div>
+                                        {cancelRequests.length > 0 && (
+                                            <span className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                {cancelRequests.length} Pending
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="p-6 space-y-4">
+                                        {cancelRequests.length === 0 ? (
+                                            <div className="py-16 text-center">
+                                                <CheckCircle size={40} className="mx-auto mb-4 text-emerald-500 opacity-50" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted">No pending cancellation requests</p>
+                                            </div>
+                                        ) : cancelRequests.map(order => (
+                                            <div key={order._id} className="p-6 bg-white/[0.02] border border-red-500/10 rounded-2xl space-y-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                    <div>
+                                                        <div className="flex items-center gap-3 flex-wrap mb-2">
+                                                            <p className="text-sm font-black text-white">Order #{order._id.slice(-6).toUpperCase()}</p>
+                                                            <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest rounded-full">Cancel Requested</span>
+                                                        </div>
+                                                        <p className="text-xs text-muted mb-1">Customer: <span className="text-white font-bold">{order.userId?.name}</span> — {order.userId?.email}</p>
+                                                        <p className="text-xs text-muted">Total: <span className="text-white font-bold">₹{order.totalAmount}</span> &nbsp;·&nbsp; Status: <span className="text-white font-bold">{order.status}</span></p>
+                                                    </div>
+                                                    <div className="flex gap-3 shrink-0">
+                                                        <button
+                                                            onClick={() => handleApproveCancel(order._id)}
+                                                            className="px-5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                        >
+                                                            ✓ Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setRejectModal({ open: true, orderId: order._id, reason: '' })}
+                                                            className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                        >
+                                                            ✕ Reject
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {order.cancellationNote && (
+                                                    <div className="p-4 bg-white/5 border border-white/5 rounded-xl">
+                                                        <p className="text-[9px] font-black text-muted uppercase tracking-widest mb-1">User's Reason</p>
+                                                        <p className="text-sm text-white italic">"{order.cancellationNote}"</p>
+                                                    </div>
+                                                )}
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {order.products?.slice(0,3).map((item, i) => (
+                                                        <span key={i} className="px-3 py-1 bg-white/5 border border-white/10 text-[10px] text-muted rounded-lg">
+                                                            {item.productId?.name || 'Product'} ×{item.quantity}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ORDERS TAB */}
+                            {activeTab === 'Orders' && (
+                                <div className="glass-premium border-white/5 rounded-[2rem] overflow-hidden">
+                                    <div className="p-8 border-b border-white/5 bg-white/[0.02]">
+                                        <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                            <ShoppingCart className="text-emerald-500" size={20} /> Global Order Management
+                                        </h2>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-white/[0.01]">
+                                                <tr>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Order ID</th>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Customer</th>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Total</th>
+                                                    <th className="px-8 py-6 text-left text-[9px] font-black uppercase tracking-[0.4em] text-muted">Status</th>
+                                                    <th className="px-8 py-6 text-right text-[9px] font-black uppercase tracking-[0.4em] text-muted">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {orders.map(order => (
+                                                    <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="px-8 py-6">
+                                                            <p className="font-black text-white text-xs">#{order._id.slice(-8).toUpperCase()}</p>
+                                                            <p className="text-[8px] text-muted tracking-widest uppercase mt-1">
+                                                                {new Date(order.createdAt).toLocaleDateString()}
+                                                            </p>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <p className="font-black text-emerald-100 text-sm">{order.userId?.name || 'Unknown'}</p>
+                                                            <p className="text-[10px] text-muted tracking-widest">{order.userId?.email}</p>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-sm font-bold text-white">₹{order.totalAmount}</td>
+                                                        <td className="px-8 py-6">
+                                                            <span className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg border ${
+                                                                order.status === 'Delivered' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                                order.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                                                'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                                            }`}>
+                                                                {order.status}
+                                                            </span>
+                                                            {order.status === 'Cancelled' && order.cancellationReason && (
+                                                                <p className="text-[8px] text-red-400 mt-2 max-w-[150px] truncate" title={order.cancellationReason}>
+                                                                    Reason: {order.cancellationReason}
+                                                                </p>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <select 
+                                                                value={order.status}
+                                                                onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                                                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-emerald-500/50"
+                                                            >
+                                                                <option className="bg-[#111827] text-white" value="Pending">Pending</option>
+                                                                <option className="bg-[#111827] text-white" value="Processing">Processing</option>
+                                                                <option className="bg-[#111827] text-white" value="Shipped">Shipped</option>
+                                                                <option className="bg-[#111827] text-white" value="Delivered">Delivered</option>
+                                                                <option className="bg-[#111827] text-white" value="Cancelled">Cancelled</option>
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {orders.length === 0 && (
+                                                    <tr><td colSpan="5" className="p-12 text-center text-muted text-[10px] font-black uppercase tracking-[0.4em]">No orders found</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -342,6 +647,9 @@ const AdminDashboard = () => {
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted ml-2">Category</label>
                                         <select value={currentProduct.category} onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})} className="glass-input appearance-none">
                                             <option value="food">Food</option>
+                                            <option value="tech">Tech</option>
+                                            <option value="apparel">Apparel</option>
+                                            <option value="wellness">Wellness</option>
                                             <option value="toys">Toys</option>
                                             <option value="health">Health</option>
                                             <option value="accessories">Accessories</option>
@@ -353,13 +661,71 @@ const AdminDashboard = () => {
                                     <textarea value={currentProduct.description} onChange={(e) => setCurrentProduct({...currentProduct, description: e.target.value})} className="glass-input h-24 py-4" required></textarea>
                                 </div>
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted ml-2">Image URL</label>
-                                    <input type="text" value={currentProduct.image} onChange={(e) => setCurrentProduct({...currentProduct, image: e.target.value})} className="glass-input" placeholder="https://..." />
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted ml-2">Product Image</label>
+                                    <div className="relative group/upload">
+                                        <input 
+                                            type="file" 
+                                            onChange={(e) => setProductImage(e.target.files[0])} 
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                            accept="image/*"
+                                        />
+                                        <div className="glass-input flex items-center gap-4 py-4 min-h-[60px] group-hover/upload:border-emerald-500/50 transition-colors">
+                                            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-muted group-hover/upload:text-emerald-500 transition-colors">
+                                                <Plus size={18} />
+                                            </div>
+                                            <span className="text-xs font-bold text-muted truncate">
+                                                {productImage ? productImage.name : (currentProduct.image ? 'Click to change current image' : 'Choose local file...')}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button type="submit" className="w-full py-5 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.4em] mt-6 shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">
                                     {currentProduct?._id ? 'Update Product' : 'Create Product'}
                                 </button>
                             </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* REJECT CANCELLATION MODAL */}
+            <AnimatePresence>
+                {rejectModal.open && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-midnight/80 backdrop-blur-xl">
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            className="glass-premium border-white/10 w-full max-w-md rounded-[2rem] overflow-hidden"
+                        >
+                            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-red-500/5">
+                                <h3 className="text-base font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                    <ClipboardX size={18} className="text-red-400" /> Reject Cancellation
+                                </h3>
+                                <button onClick={() => setRejectModal({ open: false, orderId: null, reason: '' })} className="text-muted hover:text-white"><X size={20} /></button>
+                            </div>
+                            <div className="p-6 space-y-5">
+                                <p className="text-sm text-muted">Provide a reason why this cancellation cannot be fulfilled. The user will be notified with this message.</p>
+                                <textarea
+                                    value={rejectModal.reason}
+                                    onChange={(e) => setRejectModal(prev => ({ ...prev, reason: e.target.value }))}
+                                    placeholder="e.g. Order has already been shipped and cannot be cancelled at this stage..."
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white placeholder:text-muted resize-none focus:outline-none focus:border-red-500/40 transition-colors"
+                                    rows={4}
+                                />
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setRejectModal({ open: false, orderId: null, reason: '' })}
+                                        className="flex-1 py-3 text-sm font-black uppercase tracking-widest text-muted border border-white/10 rounded-xl hover:bg-white/5"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleRejectCancel}
+                                        className="flex-1 py-3 text-sm font-black uppercase tracking-widest text-white bg-red-500 rounded-xl hover:bg-red-600 transition-all"
+                                    >
+                                        Send Rejection
+                                    </button>
+                                </div>
+                            </div>
                         </motion.div>
                     </div>
                 )}

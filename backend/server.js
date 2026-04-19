@@ -10,6 +10,8 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -25,6 +27,7 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -49,5 +52,5 @@ const connectDB = async () => {
 
 connectDB();
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
